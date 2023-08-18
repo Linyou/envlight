@@ -18,7 +18,7 @@ class EnvLight(torch.nn.Module):
 
         # init an empty cubemap
         self.base = torch.nn.Parameter(
-            torch.zeros(6, self.max_res, self.max_res, 3, dtype=torch.float32, device=self.device),
+            torch.rand(6, self.max_res, self.max_res, 3, dtype=torch.float32, device=self.device),
             requires_grad=self.trainable,
         )
         
@@ -26,7 +26,7 @@ class EnvLight(torch.nn.Module):
         if path is not None:
             self.load(path)
         
-        self.build_mips()
+        # self.build_mips()
         
 
     def load(self, path):
@@ -67,31 +67,58 @@ class EnvLight(torch.nn.Module):
         )
         
 
-    def __call__(self, l, roughness=None):
+    def __call__(self, shading_normal, reflective, roughness):
         # l: [..., 3], normalized direction pointing from shading position to light
         # roughness: [..., 1]
+        
+        self.build_mips()
+        
+        diffuse_light = self._forward_diffuse(shading_normal)
+        specular_light = self._forward_specular(reflective, roughness)
+        
+        return diffuse_light, specular_light
+    
+    def _forward_diffuse(self, l):
+
+        prefix = l.shape[:-1]
+        if len(prefix) != 3: # reshape to [B, H, W, -1]
+            l = l.reshape(1, 1, -1, l.shape[-1])
+            
+        # diffuse light
+        light = dr.texture(self.diffuse[None, ...], l, filter_mode='linear', boundary_mode='cube')
+
+        light = light.view(*prefix, -1)
+        
+        return light
+    
+    def _forward_specular(self, l, roughness):
 
         prefix = l.shape[:-1]
         if len(prefix) != 3: # reshape to [B, H, W, -1]
             l = l.reshape(1, 1, -1, l.shape[-1])
             if roughness is not None:
                 roughness = roughness.reshape(1, 1, -1, 1)
-
-        if roughness is None:
-            # diffuse light
-            light = dr.texture(self.diffuse[None, ...], l, filter_mode='linear', boundary_mode='cube')
-        else:
-            # specular light
-            miplevel = self.get_mip(roughness)
-            light = dr.texture(
-                self.specular[0][None, ...], 
-                l,
-                mip=list(m[None, ...] for m in self.specular[1:]), 
-                mip_level_bias=miplevel[..., 0], 
-                filter_mode='linear-mipmap-linear', 
-                boundary_mode='cube'
-            )
+            
+        # specular light
+        miplevel = self.get_mip(roughness)
+        light = dr.texture(
+            self.specular[0][None, ...], 
+            l,
+            mip=list(m[None, ...] for m in self.specular[1:]), 
+            mip_level_bias=miplevel[..., 0], 
+            filter_mode='linear-mipmap-linear', 
+            boundary_mode='cube'
+        )
 
         light = light.view(*prefix, -1)
         
         return light
+    
+    def get_env_map(self):
+        color = cubemap_to_latlong(self.base, [512, 1024])
+        return color
+    
+    def save_env_map(self, fn):
+        color = cubemap_to_latlong(self.base, [512, 1024])
+        save_image_raw(fn, color.detach().cpu().numpy())
+        

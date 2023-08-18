@@ -1,9 +1,16 @@
 import os
+import imageio
 import numpy as np
 
 import torch
 import nvdiffrast.torch as dr
 
+
+def save_image_raw(fn, x : np.ndarray):
+    try:
+        imageio.imwrite(fn, x)
+    except:
+        print("WARNING: FAILED to save image %s" % fn)
 
 def dot(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     return torch.sum(x*y, -1, keepdim=True)
