@@ -35,11 +35,18 @@ class EnvLight(torch.nn.Module):
         if image.dtype != np.float32:
             image = image.astype(np.float32) / 255
 
-        image = torch.from_numpy(image).to(self.device) * self.scale
-        cubemap = latlong_to_cubemap(image, [self.max_res, self.max_res], self.device)
+        self.base_image = torch.from_numpy(image).to(self.device) * self.scale
+        cubemap = latlong_to_cubemap(self.base_image, [self.max_res, self.max_res], self.device)
 
         self.base.data = cubemap
-
+        
+    def gen_base_image(self):
+        self.base_image = cubemap_to_latlong(self.base, [2048, 4096])
+        
+    def update_light(self, delta):
+        self.base_image = torch.roll(self.base_image, delta, dims=1)
+        cubemap = latlong_to_cubemap(self.base_image, [self.max_res, self.max_res], self.device)
+        self.base.data = cubemap
 
     def build_mips(self, cutoff=0.99):
         
