@@ -6,7 +6,7 @@ from .utils import *
 
 class EnvLight(torch.nn.Module):
 
-    def __init__(self, path=None, device=None, scale=1.0, min_res=16, max_res=512, min_roughness=0.08, max_roughness=0.5, trainable=False):
+    def __init__(self, path=None, device=None, scale=1.0, min_res=16, max_res=512, min_roughness=0.08, max_roughness=0.5, trainable=False, color_preset=None):
         super().__init__()
         self.device = device if device is not None else 'cuda' # only supports cuda
         self.scale = scale # scale of the hdr values
@@ -16,9 +16,14 @@ class EnvLight(torch.nn.Module):
         self.max_roughness = max_roughness
         self.trainable = trainable
 
+        if color_preset is not None:
+            init_value = torch.full((6, self.max_res, self.max_res, 3), color_preset, dtype=torch.float32, device=self.device)
+        else:
+            init_value = torch.rand(6, self.max_res, self.max_res, 3, dtype=torch.float32, device=self.device)
+            
         # init an empty cubemap
         self.base = torch.nn.Parameter(
-            torch.rand(6, self.max_res, self.max_res, 3, dtype=torch.float32, device=self.device),
+            init_value,
             requires_grad=self.trainable,
         )
         
