@@ -31,7 +31,7 @@ class EnvLight(torch.nn.Module):
         if path is not None:
             self.load(path)
         
-        # self.build_mips()
+        self.build_mips()
         
 
     def load(self, path):
@@ -82,8 +82,8 @@ class EnvLight(torch.nn.Module):
     def __call__(self, shading_normal, reflective, roughness):
         # l: [..., 3], normalized direction pointing from shading position to light
         # roughness: [..., 1]
-        
-        self.build_mips()
+        if self.trainable:
+            self.build_mips()
         
         diffuse_light = self._forward_diffuse(shading_normal)
         specular_light = self._forward_specular(reflective, roughness)
@@ -97,7 +97,7 @@ class EnvLight(torch.nn.Module):
             l = l.reshape(1, 1, -1, l.shape[-1])
             
         # diffuse light
-        light = dr.texture(self.diffuse[None, ...], l, filter_mode='linear', boundary_mode='cube')
+        light = dr.texture(self.diffuse[None, ...], l.contiguous(), filter_mode='linear', boundary_mode='cube')
 
         light = light.view(*prefix, -1)
         
@@ -115,7 +115,7 @@ class EnvLight(torch.nn.Module):
         miplevel = self.get_mip(roughness)
         light = dr.texture(
             self.specular[0][None, ...], 
-            l,
+            l.contiguous(),
             mip=list(m[None, ...] for m in self.specular[1:]), 
             mip_level_bias=miplevel[..., 0], 
             filter_mode='linear-mipmap-linear', 
