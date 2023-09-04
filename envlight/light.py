@@ -3,6 +3,22 @@ import imageio
 from . import renderutils as ru
 from .utils import *
 
+def create_trainable_env_rnd(base_res, scale=0.0, bias=0.5, device='cuda'):
+    base = torch.rand(
+        6, base_res, base_res, 3, 
+        dtype=torch.float32, 
+        device=device
+    ) * scale + bias
+    return base
+
+def create_trainable_env_fix(base_res, value, device='cuda'):
+    base = torch.full(
+        (6, base_res, base_res, 3), 
+        value, 
+        dtype=torch.float32, 
+        device=device
+    )
+    return base
 
 class EnvLight(torch.nn.Module):
 
@@ -17,13 +33,20 @@ class EnvLight(torch.nn.Module):
         self.trainable = trainable
 
         if color_preset is not None:
-            init_value = torch.full((6, self.max_res, self.max_res, 3), color_preset, dtype=torch.float32, device=self.device)
+            init_value = create_trainable_env_fix(
+                self.max_res, 
+                color_preset,
+                device=self.device
+            )
         else:
-            init_value = torch.rand(6, self.max_res, self.max_res, 3, dtype=torch.float32, device=self.device)
+            init_value = create_trainable_env_rnd(
+                self.max_res,
+                device=self.device
+            )
             
         # init an empty cubemap
         self.base = torch.nn.Parameter(
-            init_value,
+            init_value.clone().detach(),
             requires_grad=self.trainable,
         )
         
