@@ -2,6 +2,7 @@ import torch
 import imageio
 from . import renderutils as ru
 from .utils import *
+import random
 
 def create_trainable_env_rnd(base_res, scale=0.0, bias=0.5, device='cuda'):
     base = torch.rand(
@@ -64,6 +65,7 @@ class EnvLight(torch.nn.Module):
             image = image.astype(np.float32) / 255
 
         self.base_image = torch.from_numpy(image).to(self.device) * self.scale
+        # self.base_image_orig = self.base_image.clone().detach()
         cubemap = latlong_to_cubemap(self.base_image, [self.max_res, self.max_res], self.device)
 
         self.base.data = cubemap
@@ -71,9 +73,18 @@ class EnvLight(torch.nn.Module):
     def gen_base_image(self):
         self.base_image = cubemap_to_latlong(self.base, [2048, 4096])
         
-    def update_light(self, delta):
-        self.base_image = torch.roll(self.base_image, delta, dims=1)
-        cubemap = latlong_to_cubemap(self.base_image, [self.max_res, self.max_res], self.device)
+    # def update_light(self, delta):
+    #     self.base_image = torch.roll(self.base_image, delta, dims=1)
+    #     cubemap = latlong_to_cubemap(self.base_image, [self.max_res, self.max_res], self.device)
+    #     self.base.data = cubemap
+        
+    def update_light(self, delta, rand=0):
+        base_image = torch.roll(self.base_image, delta, dims=1)
+        if rand > 0:
+            random_delta = random.randint(0, rand)
+            base_image = torch.roll(base_image, random_delta, dims=1)
+            base_image = torch.roll(base_image, random_delta, dims=0)
+        cubemap = latlong_to_cubemap(base_image, [self.max_res, self.max_res], self.device)
         self.base.data = cubemap
 
     def build_mips(self, cutoff=0.99):
